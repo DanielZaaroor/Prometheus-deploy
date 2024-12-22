@@ -9,7 +9,7 @@ alerting:
   alertmanagers:
     - static_configs:
         - targets:
-           - "{{ alertmanager_host }}:9093"
+           - "{{ hostvars['alertmanager_host'].ansible_host }}:9093"
 
 # Load rules once and periodically evaluate them according to the global 'evaluation_interval'.
 rule_files:
