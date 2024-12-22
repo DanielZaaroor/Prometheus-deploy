@@ -28,6 +28,11 @@
       file:
         path: /etc/prometheus
         state: directory
+
+    - name: Unarchive AlertManager
+      unarchive:
+        src: "files/alertmanager-{{ am_version }}.linux-amd64.tar.gz"
+        dest: /etc/prometheus/
     
     - name: Copy AlertManager Service
       template:
