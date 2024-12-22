@@ -1,0 +1,85 @@
+---
+- name: Host Surveey
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - add_host:
+      name: "{{ item }}"
+      group: alertmanager_hosts
+    with_items:
+      - '{{ survey_hosts.split(",") }}'
+      when: survey_hosts is defined and item != ''
+
+- name: Install and set Alertmanager
+  hosts: alertmanager_hosts
+  gather_facts: no
+  vars:
+    - ansible_python_interpeter: /usr/bin/python3
+    - alertmanager_url_sufix: /alerts
+    - nginx_add: |
+        # Ansible Added AlertManager Location
+                location {{ alertmanager_url_sufix }} {  # http://{{ inventory_hostname }}:443{{ alertmanager_url_sufix }}/#/alerts
+                    rewrite ^{{ alertmanager_url_sufix }}(.*)$ $1 break;
+                    proxy_pass http://{{inventory_hostname}}:9093
+                }
+
+  tasks:
+    - name: Create Directory
+      file:
+        path: /etc/prometheus
+        state: directory
+    
+    - name: Copy AlertManager Service
+      template:
+        src: templates/alertmanager.service.js
+        dest: /etc/systemd/system/alertmanager.service
+
+    - name: Start and enable Alertmanager
+      systemd:
+        name: alertmanager
+        daemon_reload: yes
+        enabled: yes
+        state: started
+
+    - name: Install Nginx
+      dnf:
+        name: nginx
+        state: present
+      register: install_nginx
+
+    - name: Change Nginx Ports
+      lineinfile:
+        path: /etc/nginx/nginx.conf
+        regexp: "{{ item.rexeg }}"
+        line: "{{ item.line }}"
+        state: present
+      with_items:
+        - { regex: '        listen        80 default_server\;', line: "        listen        443 default_server;"}
+        - { regex: '        listen        80 default_server\;', line: "        listen        443 default_server;"}
+      when: install_nginx is changed
+
+    - name: Check If Alertmanager in Nginx
+      shell: grep ' {{ alertmanager_url_sufix }} {' /etc/nginx/nginx.conf
+      register: am_in_nginx
+      failed_when: am_in_nginx.rc == 2000
+
+    - name: Add Alertmanager to Nginx
+      blockinfile:
+        path: /etc/nginx/nginx.conf
+        marker: " "
+        inserafter: '^        include \/etc\/nginx\/default\.d\/\*\.conf\;$'
+        state: present
+      register: add_nginx
+      when: am_in_nginx.rc == 1
+
+    - name: Start and Enable Nginx
+      systemd:
+        name: nginx
+        enabled: yes
+        state: started
+      register: start_nginx
+
+    - name: Reload Nginx
+      shell: nginx -s reload
+      when: add_nginx is defined and add_nginx is changed and start_nginx is not changed
+        
