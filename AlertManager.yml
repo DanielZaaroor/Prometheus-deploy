@@ -31,7 +31,7 @@
 
     - name: Unarchive AlertManager
       unarchive:
-        src: "files/alertmanager-{{ am_version }}.linux-amd64.tar.gz"
+        src: "files/alertmanager-{{ hostvars[alertmanager_host].am_version }}.linux-amd64.tar.gz"
         dest: /etc/prometheus/
     
     - name: Copy AlertManager Service
