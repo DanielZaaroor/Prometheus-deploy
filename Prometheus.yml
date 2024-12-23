@@ -1,0 +1,50 @@
+---
+
+- name: Install and Set Prometheus
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - add_host:
+        name: "{{ item }}"
+        group: prom_hosts
+      with_items:
+        - "{{ survey_hosts.split(",") }}"
+      when: survey_hosts is defined and item != ""
+
+- name: 
+  hosts: prom_hosts
+  gather_facts: no
+  vars:
+    - prom_ver: 3.0.1
+    - nginx_add: |
+        # Ansible Added Prometheus Location
+                location {{ url_sufix }} {             # http://{{inventory_hostname}}:443{{url_sufix}}/
+                    rewrite ^{{ url_sufix }}(.*)$ $1 break;
+                    proxy_pass http://{{inventory_hostname}}:9090;
+                }
+
+  tasks:
+    - name: Create Directoey
+      file:
+        path: /etc/prometheus
+        state: directory
+
+    - name: Unarchive Prometheus
+      unarchive:
+        src: files/prometheus-{{ prom_ver }}.linux-amd64.tar.gz
+        dest: /etc/prometheus
+
+    - name: Copy Prometheus Service
+      template:
+        src: templates/prometheus.service.j2
+        dest: /etc/systemd/system/prometheus.service
+
+    - name: Copy prometheus.yml and targets.json
+      copy:
+        src: files/{{ item }}
+        dest: /etc/prometheus/prometheus-{{ prom_ver }}.limux-amd64
+      with_items:
+        - prometheus.yml
+        - targets.json
+        
+    - name: 
