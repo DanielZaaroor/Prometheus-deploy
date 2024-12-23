@@ -1,25 +1,26 @@
 ---
 
-- name: Install and Set Prometheus
-  hosts: localhost
-  gather_facts: no
-  tasks:
-    - add_host:
-        name: "{{ item }}"
-        group: prom_hosts
-      with_items:
-        - "{{ survey_hosts.split(",") }}"
-      when: survey_hosts is defined and item != ""
+# - name: Install and Set Prometheus
+#   hosts: localhost
+#   gather_facts: no
+#   tasks:
+#     - add_host:
+#         name: "{{ item }}"
+#         group: prometheus_hosts
+#       with_items:
+#         - "{{ survey_hosts.split(",") }}"
+#       when: survey_hosts is defined and item != ""
 
 - name: 
-  hosts: prom_hosts
+  hosts: prometheus_hosts
   gather_facts: no
   vars:
     - prom_ver: 3.0.1
+    - prom_url_sufix: /prom
     - nginx_add: |
         # Ansible Added Prometheus Location
-                location {{ url_sufix }} {             # http://{{inventory_hostname}}:443{{url_sufix}}/
-                    rewrite ^{{ url_sufix }}(.*)$ $1 break;
+                location {{ prom_url_sufix }} {             # http://{{inventory_hostname}}:443{{prom_url_sufix}}/
+                    rewrite ^{{ prom_url_sufix }}(.*)$ $1 break;
                     proxy_pass http://{{inventory_hostname}}:9090;
                 }
 
@@ -47,4 +48,52 @@
         - prometheus.yml
         - targets.json
         
-    - name: 
+     - name: Start and enable Prometheus
+      systemd:
+        name: prometheus
+        daemon_reload: yes
+        enabled: yes
+        state: started
+
+    - name: Install Nginx
+      dnf:
+        name: nginx
+        state: present
+      register: install_nginx
+
+    - name: Change Nginx Ports
+      lineinfile:
+        path: /etc/nginx/nginx.conf
+        regexp: "{{ item.rexeg }}"
+        line: "{{ item.line }}"
+        state: present
+      with_items:
+        - { regex: '        listen        80 default_server\;', line: "        listen        443 default_server;"}
+        - { regex: '        listen        80 default_server\;', line: "        listen        443 default_server;"}
+      when: install_nginx is changed
+
+    - name: Check If Prometheus in Nginx
+      shell: grep ' {{ prom_url_sufix }} {' /etc/nginx/nginx.conf
+      register: prom_in_nginx
+      failed_when: prom_in_nginx.rc == 2000
+
+    - name: Add Prometheus to Nginx
+      blockinfile:
+        path: /etc/nginx/nginx.conf
+        marker: " "
+        inserafter: '^        include \/etc\/nginx\/default\.d\/\*\.conf\;$'
+        state: present
+      register: add_nginx
+      when: prom_in_nginx.rc == 1
+
+    - name: Start and Enable Nginx
+      systemd:
+        name: nginx
+        enabled: yes
+        state: started
+      register: start_nginx
+
+    - name: Reload Nginx
+      shell: nginx -s reload
+      when: add_nginx is defined and add_nginx is changed and start_nginx is not changed
+        
