@@ -1,20 +1,21 @@
 ---
-- name: Host Surveey
-  hosts: localhost
-  gather_facts: no
-  tasks:
-    - add_host:
-      name: "{{ item }}"
-      group: alertmanager_hosts
-    with_items:
-      - '{{ survey_hosts.split(",") }}'
-      when: survey_hosts is defined and item != ''
+# - name: Host Surveey
+#   hosts: localhost
+#   gather_facts: no
+#   tasks:
+#     - add_host:
+#       name: "{{ item }}"
+#       group: alertmanager_hosts
+#     with_items:
+#       - '{{ survey_hosts.split(",") }}'
+#       when: survey_hosts is defined and item != ''
 
 - name: Install and set Alertmanager
   hosts: alertmanager_hosts
   gather_facts: no
   vars:
     - ansible_python_interpeter: /usr/bin/python3
+    - am_version: 0.27.0
     - alertmanager_url_sufix: /alerts
     - nginx_add: |
         # Ansible Added AlertManager Location
@@ -31,7 +32,7 @@
 
     - name: Unarchive AlertManager
       unarchive:
-        src: "files/alertmanager-{{ hostvars[alertmanager_host].am_version }}.linux-amd64.tar.gz"
+        src: "files/alertmanager-{{ am_version }}.linux-amd64.tar.gz"
         dest: /etc/prometheus/
     
     - name: Copy AlertManager Service
