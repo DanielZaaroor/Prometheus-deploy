@@ -1,0 +1,110 @@
+---
+
+# - name: Install and Set Prometheus
+#   hosts: localhost
+#   gather_facts: no
+#   tasks:
+#     - add_host:
+#         name: "{{ item }}"
+#         group: prometheus_hosts
+#       with_items:
+#         - "{{ survey_hosts.split(",") }}"
+#       when: survey_hosts is defined and item != ""
+
+- name: 
+  hosts: prometheus_hosts
+  gather_facts: no
+  vars:
+    - grafana_ver: 11.3.2
+    - grafana_url_sufix: /grafana
+    - nginx_add: |
+        # Ansible Added Prometheus Location
+                location {{ grafana_url_sufix }} {             # http://{{inventory_hostname}}:443{{grafana_url_sufix}}/login
+                    rewrite ^{{ grafana_url_sufix }}(.*)$ $1 break;
+                    proxy_pass http://{{inventory_hostname}}:3000;
+                    proxy redirect off;
+                    proxy_set_header Host $http_host;
+                }
+
+  tasks:
+    - name: Copy Grafana
+      copy:
+        src: files/grafana-enterprise-{{ grafana_ver }}-1.x86_64.rpm
+        dest: /etc/
+
+    - name: Install Grafana
+      dnf:
+        name: /etc/grafana-enterprise-{{ grafana_ver }}-1.x86_64.rpm
+        state: present
+
+     - name: Copy Plugins 
+      copy:
+        src: files/{{ item }}
+        dest: /var/lib/grafana/plugins/
+      with_items:
+        - camptocamp-prometheus-alertmanager-datasource
+
+    - name: Change Grafana URL
+      lineinfile: 
+        path: /etc/grafana/grafana.ini
+        regexp: \;root_url = \%\(protocol\)s\:\/\/\%\(domain\)s\:\%\(http_port\)s\/
+        line: root_url=%(protocol)s://%(domain)s:%(http_port)s{{ url_sufix }}
+        state: present
+      when: 
+
+    - name: Copy prometheus.yml and targets.json
+      copy:
+        src: files/{{ item }}
+        dest: /etc/prometheus/prometheus-{{ grafana_ver }}.limux-amd64
+      with_items:
+        - prometheus.yml
+        - targets.json
+        
+     - name: Start and enable Prometheus
+      systemd:
+        name: prometheus
+        daemon_reload: yes
+        enabled: yes
+        state: started
+
+    - name: Install Nginx
+      dnf:
+        name: nginx
+        state: present
+      register: install_nginx
+
+    - name: Change Nginx Ports
+      lineinfile:
+        path: /etc/nginx/nginx.conf
+        regexp: "{{ item.rexeg }}"
+        line: "{{ item.line }}"
+        state: present
+      with_items:
+        - { regex: '        listen        80 default_server\;', line: "        listen        443 default_server;"}
+        - { regex: '        listen        80 default_server\;', line: "        listen        443 default_server;"}
+      when: install_nginx is changed
+
+    - name: Check If Prometheus in Nginx
+      shell: grep ' {{ grafana_url_sufix }} {' /etc/nginx/nginx.conf
+      register: prom_in_nginx
+      failed_when: prom_in_nginx.rc == 2000
+
+    - name: Add Prometheus to Nginx
+      blockinfile:
+        path: /etc/nginx/nginx.conf
+        marker: " "
+        inserafter: '^        include \/etc\/nginx\/default\.d\/\*\.conf\;$'
+        state: present
+      register: add_nginx
+      when: prom_in_nginx.rc == 1
+
+    - name: Start and Enable Nginx
+      systemd:
+        name: nginx
+        enabled: yes
+        state: started
+      register: start_nginx
+
+    - name: Reload Nginx
+      shell: nginx -s reload
+      when: add_nginx is defined and add_nginx is changed and start_nginx is not changed
