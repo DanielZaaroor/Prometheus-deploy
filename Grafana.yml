@@ -48,24 +48,21 @@
       lineinfile: 
         path: /etc/grafana/grafana.ini
         regexp: \;root_url = \%\(protocol\)s\:\/\/\%\(domain\)s\:\%\(http_port\)s\/
-        line: root_url=%(protocol)s://%(domain)s:%(http_port)s{{ url_sufix }}
+        line: root_url=%(protocol)s://%(domain)s:%(http_port)s{{ grafana_url_sufix }}
         state: present
-      when: 
-
-    - name: Copy prometheus.yml and targets.json
-      copy:
-        src: files/{{ item }}
-        dest: /etc/prometheus/prometheus-{{ grafana_ver }}.limux-amd64
-      with_items:
-        - prometheus.yml
-        - targets.json
+      when: grafana_url_sufix is defined and grafana_url_sufix != "" and grafana_url_sufix != "/"
         
-     - name: Start and enable Prometheus
+     - name: Start and enable Grafana
       systemd:
-        name: prometheus
+        name: grafana-server
         daemon_reload: yes
         enabled: yes
         state: started
+
+    - name: Remove Grafana RPM
+      file:
+        path: /etc/grafana-enterprise-{{ grafana_ver }}-1.x86_64.rpm
+        state: absent
 
     - name: Install Nginx
       dnf:
@@ -84,19 +81,20 @@
         - { regex: '        listen        80 default_server\;', line: "        listen        443 default_server;"}
       when: install_nginx is changed
 
-    - name: Check If Prometheus in Nginx
+    - name: Check If Grafana in Nginx
       shell: grep ' {{ grafana_url_sufix }} {' /etc/nginx/nginx.conf
-      register: prom_in_nginx
-      failed_when: prom_in_nginx.rc == 2000
+      register: grafana_in_nginx
+      failed_when: grafana_in_nginx.rc == 2000
 
-    - name: Add Prometheus to Nginx
+    - name: Add Grafana to Nginx
       blockinfile:
         path: /etc/nginx/nginx.conf
         marker: " "
         inserafter: '^        include \/etc\/nginx\/default\.d\/\*\.conf\;$'
+        block: "{{ nginx_add }}"
         state: present
       register: add_nginx
-      when: prom_in_nginx.rc == 1
+      when: grafana_in_nginx.rc == 1
 
     - name: Start and Enable Nginx
       systemd:
