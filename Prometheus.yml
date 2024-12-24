@@ -19,7 +19,7 @@
     - prom_url_sufix: /prom
     - nginx_add: |
         # Ansible Added Prometheus Location
-                location {{ prom_url_sufix }} {             # http://{{inventory_hostname}}:443{{prom_url_sufix}}/
+                location {{ prom_url_sufix }} {             # http://{{inventory_hostname}}:443{{prom_url_sufix}}/graph
                     rewrite ^{{ prom_url_sufix }}(.*)$ $1 break;
                     proxy_pass http://{{inventory_hostname}}:9090;
                 }
