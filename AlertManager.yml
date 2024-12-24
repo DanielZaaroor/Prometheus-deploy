@@ -74,6 +74,7 @@
         path: /etc/nginx/nginx.conf
         marker: " "
         inserafter: '^        include \/etc\/nginx\/default\.d\/\*\.conf\;$'
+        block: "{{ nginx_add }}"
         state: present
       register: add_nginx
       when: am_in_nginx.rc == 1
