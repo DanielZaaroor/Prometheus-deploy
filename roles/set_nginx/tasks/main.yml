@@ -1,0 +1,17 @@
+---
+- name: Install Nginx
+ dnf:
+   name: nginx
+   state: present
+   register: install_nginx
+
+- name: Change Nginx Ports
+  lineinfile:
+    path: /etc/nginx/nginx.conf
+    regexp: "{{ item.rexeg }}"
+    line: "{{ item.line }}"
+    state: present
+  with_items:
+    - { regex: '        listen        80 default_server\;', line: "        listen        443 default_server;"}
+    - { regex: '        listen        80 default_server\;', line: "        listen        443 default_server;"}
+  when: install_nginx is changed
