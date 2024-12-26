@@ -8,11 +8,11 @@
 #         name: "{{ item }}"
 #         group: prometheus_hosts
 #       with_items:
-#         - "{{ survey_hosts.split(",") }}"
+#         - "{{ survey_.split(",") }}"
 #       when: survey_hosts is defined and item != ""
 
 - name: 
-  hosts: prometheus_hosts
+  hosts: grafana_hosts
   gather_facts: no
   vars:
     - grafana_ver: 11.3.2
