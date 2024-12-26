@@ -64,22 +64,9 @@
         path: /etc/grafana-enterprise-{{ grafana_ver }}-1.x86_64.rpm
         state: absent
 
-    - name: Install Nginx
-      dnf:
-        name: nginx
-        state: present
-      register: install_nginx
-
-    - name: Change Nginx Ports
-      lineinfile:
-        path: /etc/nginx/nginx.conf
-        regexp: "{{ item.rexeg }}"
-        line: "{{ item.line }}"
-        state: present
-      with_items:
-        - { regex: '        listen        80 default_server\;', line: "        listen        443 default_server;"}
-        - { regex: '        listen        80 default_server\;', line: "        listen        443 default_server;"}
-      when: install_nginx is changed
+    - name: setting nginx
+      include_role:
+        name: set_nginx
 
     - name: Check If Grafana in Nginx
       shell: grep ' {{ grafana_url_sufix }} {' /etc/nginx/nginx.conf
@@ -96,13 +83,6 @@
       register: add_nginx
       when: grafana_in_nginx.rc == 1
 
-    - name: Start and Enable Nginx
-      systemd:
-        name: nginx
-        enabled: yes
-        state: started
-      register: start_nginx
-
-    - name: Reload Nginx
-      shell: nginx -s reload
-      when: add_nginx is defined and add_nginx is changed and start_nginx is not changed
+    - name: reload nginx
+      include_role:
+        name: reload_nginx
