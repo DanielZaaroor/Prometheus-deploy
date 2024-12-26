@@ -1,0 +1,11 @@
+---
+- name: Start and Enable Nginx
+  systemd:
+    name: nginx
+    enabled: yes
+    state: started
+  register: start_nginx
+
+- name: Reload Nginx
+  shell: nginx -s reload
+  when: add_nginx is defined and add_nginx is changed and start_nginx is not changed
